@@ -8,10 +8,28 @@ import {
   InputRightElement,
   Button,
   useToast,
+  Tabs,
+  TabList,
+  Tab,
+  HStack,
 } from '@chakra-ui/react';
 import { Heatmap } from '@/components';
 import { ChartDataT } from '@/components/base/heatmap';
 import { format } from 'date-fns';
+
+function isValidGitHubUrl(url: string): boolean {
+  const githubUrlRegex =
+    /^(https?:\/\/)?(www\.)?github\.com\/[A-Za-z0-9_-]+(\/[A-Za-z0-9._-]+)?(\/)?$/;
+  return githubUrlRegex?.test(url);
+}
+
+function extractGitHubUsername(url: string, fallback = ""): string {
+  const githubUsernameRegex =
+    /^(?:https?:\/\/)?(?:www\.)?github\.com\/([A-Za-z0-9_-]+)(?:\/|$)/;
+  const match = url?.match(githubUsernameRegex);
+
+  return match ? match[1] : fallback;
+}
 
 const today = new Date();
 
@@ -33,6 +51,7 @@ type ContributionDataT = {
 const Home = () => {
   const toast = useToast();
 
+  const [tabIndex, setTabIndex] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [contributionData, setContributionData] = React.useState<
@@ -49,10 +68,17 @@ const Home = () => {
   const getStats = async (e: React.SyntheticEvent) => {
     e?.preventDefault();
 
-    if (searchQuery) {
+    if (tabIndex === 0 && !isValidGitHubUrl(searchQuery)) {
+      toast({ status: 'info', title: 'Invalid URL' });
+      return;
+    }
+
+    const username = extractGitHubUsername(searchQuery, searchQuery);    
+
+    if (username) {
       setLoading(true);
       const res = await fetch(
-        `/api/stats?username=${searchQuery}&start=${startDate}&end=${endDate}`
+        `/api/stats?username=${username}&start=${startDate}&end=${endDate}`
       );
 
       const data = await res.json();
@@ -111,7 +137,23 @@ const Home = () => {
         <Text align={'center'} fontWeight={600}>
           Github Stats Using Heatmap
         </Text>
+
         <Stack gap={5}>
+          <HStack gap={2}>
+            <Text fontWeight={600} fontSize={'0.75rem'}>
+              Search By:
+            </Text>
+            <Tabs
+              variant='soft-rounded'
+              colorScheme='teal'
+              onChange={index => setTabIndex(index)}>
+              <TabList>
+                <Tab fontSize={'small'}>URL</Tab>
+                <Tab fontSize={'small'}>Username</Tab>
+              </TabList>
+            </Tabs>
+          </HStack>
+
           <InputGroup
             as={'form'}
             size='sm'
@@ -123,7 +165,11 @@ const Home = () => {
               borderColor={'gray.300'}
               borderRadius={5}
               readOnly={loading}
-              placeholder='Enter github username...'
+              placeholder={
+                tabIndex === 0
+                  ? 'Enter github profile url...'
+                  : 'Enter github username...'
+              }
               value={searchQuery}
               onChange={e => setSearchQuery(e?.target?.value)}
               _focusVisible={{ borderColor: 'teal.500' }}
